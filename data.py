@@ -14,14 +14,43 @@ import csv
 from numpy import nan, isnan, array
 
 
-def plot(data):
-    countries = [d['country'] for d in data]
-    hdi = [[float(d['HDI.%d'%y] or 'nan') for y in range(1976,2006)] for d in data]
-    tfr = [[float(d['TFR.%d'%y] or 'nan') for y in range(1976,2006)] for d in data]
+def plot_1(data=all):
+    from pylab import plot, axis, legend
+    
+    hdi75 = [float(d['HDI.1975'] or -1) for d in data]
+    hdi05 = [float(d['HDI.2005'] or -1) for d in data]
+    tfr75 = [float(d['TFR.1975'] or -1) for d in data]
+    tfr05 = [float(d['TFR.2005'] or -1) for d in data]
 
-    for ii, c in enumerate(country):
-        plot(hdi[ii],tfr[ii],'.-', linewidth=2, alpha=.5)
-        text(hdi[ii][-1],tfr[ii][-1],country[ii],alpha=.5,size=8)
+    plot(hdi75, tfr75, 'bs', alpha=.75, markeredgecolor='b', label='1975')
+    plot(hdi05, tfr05, 'r^', alpha=.75, markeredgecolor='r', label='2005')
+    axis([.3, 1, 1, 8])
+    legend()
+    xlabel('Human development index')
+    ylabel('Total fertility rate')
+    
+    
+def plot_2(data=all):
+    from pylab import plot, axis, legend, xlabel, ylabel
+    
+    hdi75 = [float(d['HDI.1975'] or -1) for d in data]
+    hdi05 = [float(d['HDI.2005'] or -1) for d in data]
+    tfr75 = [float(d['TFR.1975'] or -1) for d in data]
+    tfr05 = [float(d['TFR.2005'] or -1) for d in data]
+
+    plot(hdi75, tfr75, 'b.', alpha=1., label='1975')
+    plot(hdi05, tfr05, 'r.', alpha=1., label='2005')
+    
+    hdi = [[float(d['HDI.%d'%y] or -1) for y in range(1976,2005)] for d in data]
+    tfr = [[float(d['TFR.%d'%y] or -1) for y in range(1976,2005)] for d in data]
+
+    for x, y in zip(hdi, tfr):
+        plot(x, y, 'k.', alpha=.3)
+
+    axis([.3, 1, 1, 8])
+    legend()
+    xlabel('Human development index')
+    ylabel('Total fertility rate')
 
 
 def to_arrays(data):
