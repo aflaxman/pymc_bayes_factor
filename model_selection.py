@@ -34,7 +34,7 @@ import data
 import models
 
 
-def bayes_factor(m1, m2, iter=1e6, burn=25000, thin=1, verbose=0):
+def bayes_factor(m1, m2, iter=1e6, burn=25000, thin=10, verbose=0):
     """ Approximate the Bayes factor::
         K = Pr[data | m2] / Pr[data | m1]
 
@@ -52,7 +52,7 @@ def bayes_factor(m1, m2, iter=1e6, burn=25000, thin=1, verbose=0):
     ----------
     m1 : dict of PyMC model vars
     m2 : dict of PyMC model vars
-      m1 and m2 must each include a key called 'data_logp', which is
+      m1 and m2 must each include a key called 'logp', which is
       usually a PyMC deterministic that takes values equal to the log
       of the probability of the data under the current model
       parameters
@@ -101,11 +101,15 @@ def wikipedia_example(iter=1e6, burn=25000, verbose=1):
     def data_logp():
          return binomial_like(115, 200, .5)
 
+    @deterministic
+    def logp(data_logp=data_logp):
+         return data_logp
+
     @potential
     def data_potential(data_logp=data_logp):
         return data_logp
 
-    m1 = dict(data_logp=data_logp, data_potential=data_potential)
+    m1 = dict(data_logp=data_logp, logp=logp, data_potential=data_potential)
 
     # coin w unknown bias model
     q = Uniform('q', 0, 1)
@@ -113,10 +117,14 @@ def wikipedia_example(iter=1e6, burn=25000, verbose=1):
     def data_logp(q=q):
         return binomial_like(115, 200, q)
 
+    @deterministic
+    def logp(q=q, data_logp=data_logp):
+         return uniform_like(q,0,1) + data_logp
+
     @potential
     def data_potential(data_logp=data_logp):
         return data_logp
 
-    m2 = dict(q=q, data_logp=data_logp, data_potential=data_potential)
+    m2 = dict(q=q, data_logp=data_logp, logp=logp, data_potential=data_potential)
 
     return m1, m2, bayes_factor(m1, m2, iter=iter, burn=burn, verbose=verbose)
