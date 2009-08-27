@@ -32,7 +32,6 @@ def plot_1(data=all):
     
 def plot_2(data=all):
     from pylab import plot, axis, legend, xlabel, ylabel
-    
     hdi75 = [float(d['HDI.1975'] or -1) for d in data]
     hdi05 = [float(d['HDI.2005'] or -1) for d in data]
     tfr75 = [float(d['TFR.1975'] or -1) for d in data]
