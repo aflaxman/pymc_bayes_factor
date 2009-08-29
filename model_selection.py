@@ -6,8 +6,8 @@ Examples
 >>> import models
 >>> import model_selection
 
->>> X = randn(1000)
->>> Y = 2*X - 1 + randn(1000) # data actually is linear
+>>> X = randn(4000)
+>>> Y = 2*X - 1 + randn(4000) # data actually is linear
 >>> m1 = models.linear(X=X, Y=Y, order=1)
 >>> m2 = models.linear(X=X, Y=Y, order=2)
 >>> K = model_selection.bayes_factor(m1, m2)
@@ -35,8 +35,9 @@ import models
 
 
 def bayes_factor(m1, m2, iter=1e6, burn=25000, thin=10, verbose=0):
-    """ Approximate the Bayes factor::
+    """ Approximate the Bayes factor as the harmonic mean posterior liklihood::
         K = Pr[data | m2] / Pr[data | m1]
+          ~= 1/mean(1/Pr[data_i, theta_i])
 
     to compare 2 models.  According to Wikipedia / Jefferies, the
     interpretation of K is the following::
@@ -50,12 +51,11 @@ def bayes_factor(m1, m2, iter=1e6, burn=25000, thin=10, verbose=0):
 
     Parameters
     ----------
-    m1 : dict of PyMC model vars
-    m2 : dict of PyMC model vars
-      m1 and m2 must each include a key called 'logp', which is
-      usually a PyMC deterministic that takes values equal to the log
-      of the probability of the data under the current model
-      parameters
+    m1 : object containing PyMC model vars and logp method
+    m2 : object containing PyMC model vars and logp method
+      m1 and m2 must each include a method called 'logp', which
+      calculates the posterior log probability at all MCMC samples
+      stored in the stochastic traces
     iter: int, optional
       number of iterations of MCMC
     burn: int, optional
@@ -77,13 +77,13 @@ def bayes_factor(m1, m2, iter=1e6, burn=25000, thin=10, verbose=0):
     """
 
     MCMC(m1).sample(iter, burn, thin, verbose=verbose)
-    if verbose:  print 1. / mean(exp(-m1['data_logp'].trace()))
+    logp1 = m1.logp()
 
     MCMC(m2).sample(iter, burn, thin, verbose=verbose)
-    if verbose:  print 1. / mean(exp(-m2['data_logp'].trace()))
+    logp2 = m2.logp()
 
-    mu_logp = m2['data_logp'].stats()['mean']
-    K = mean(exp(mu_logp-m1['data_logp'].trace())) / mean(exp(mu_logp-m2['data_logp'].trace()))
+    mu_logp = mean(logp2)
+    K = mean(exp(mu_logp-logp1)) / mean(exp(mu_logp-logp2))
 
     return K
 
@@ -99,7 +99,7 @@ def wikipedia_example(iter=1e6, burn=25000, verbose=1):
     # fair coin model
     @deterministic
     def data_logp():
-         return binomial_like(115, 200, .5)
+         return binomial_like(15, 20, .5)
 
     @deterministic
     def logp(data_logp=data_logp):
@@ -115,7 +115,7 @@ def wikipedia_example(iter=1e6, burn=25000, verbose=1):
     q = Uniform('q', 0, 1)
     @deterministic
     def data_logp(q=q):
-        return binomial_like(115, 200, q)
+        return binomial_like(15, 20, q)
 
     @deterministic
     def logp(q=q, data_logp=data_logp):
