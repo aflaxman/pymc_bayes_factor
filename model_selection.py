@@ -1,4 +1,4 @@
-""" Compare models for TFR ~ f(HDI) with Bayes Factor
+""" Compare Bayesian models with the Bayes Factor
 
 Examples
 --------
@@ -11,14 +11,14 @@ Examples
 >>> m1 = models.linear(X=X, Y=Y, order=1)
 >>> m2 = models.linear(X=X, Y=Y, order=2)
 >>> K = model_selection.bayes_factor(m1, m2)
->>> assert K > 1
+>>> assert K >= 1
 >>> assert K < 3
 
 >>> Y = 2*X**2 - 1 + randn(1000) # data actually is quadratic
 >>> m1 = models.linear(X=X, Y=Y, order=1)
 >>> m2 = models.linear(X=X, Y=Y, order=2)
 >>> K = model_selection.bayes_factor(m1, m2)
->>> assert K > 100
+>>> assert K >= 100
 
 >>> import data
 >>> m1=models.linear(X=data.hdi, Y=data.tfr, order=2)
@@ -29,9 +29,6 @@ Examples
 
 from pymc import *
 from numpy import exp, mean
-
-import data
-import models
 
 
 def bayes_factor(m1, m2, iter=1e6, burn=25000, thin=10, verbose=0):
@@ -75,7 +72,6 @@ def bayes_factor(m1, m2, iter=1e6, burn=25000, thin=10, verbose=0):
     Raftery (1995) where it is attributed to to Newton and Raftery
     (1994)
     """
-
     MCMC(m1).sample(iter, burn, thin, verbose=verbose)
     logp1 = m1.logp()
 
@@ -87,6 +83,34 @@ def bayes_factor(m1, m2, iter=1e6, burn=25000, thin=10, verbose=0):
 
     return K
 
+
+class binomial_model:
+    def __init__(self, n=115, N=200, q=.5):
+        self.n = n
+        self.N = N
+        self.q = q
+
+        @potential
+        def data_potential(n=self.n, N=self.N,
+                           q=self.q):
+            return binomial_like(n, N, q)
+        self.data_potential = data_potential
+
+    def logp(self):
+        if isinstance(self.q, float):
+            return self.data_potential.logp
+
+        elif isinstance(self.q, Variable) and isinstance(self.q.trace, bool):        # trace is not a function until MCMC is run
+            return self.data_potential.logp
+
+        from numpy import array
+        logp = []
+        for q_val in self.q.trace():
+            self.q.value = q_val
+            logp.append(Model(self).logp)
+        return array(logp)
+
+
 def wikipedia_example(iter=1e6, burn=25000, verbose=1):
     """ Based on the Wikipedia example, 115 heads from 200 coin
     tosses, m1 = fair coin, m2 = coin with probability q, uniform
@@ -95,36 +119,7 @@ def wikipedia_example(iter=1e6, burn=25000, verbose=1):
     >>> assert wikipedia_example() > 1.196
     >>> assert wikipedia_example() < 1.198
     """
+    m1 = binomial_model(115, 200, .5)
+    m2 = binomial_model(115, 200, Uniform('q', 0., 1.))
 
-    # fair coin model
-    @deterministic
-    def data_logp():
-         return binomial_like(15, 20, .5)
-
-    @deterministic
-    def logp(data_logp=data_logp):
-         return data_logp
-
-    @potential
-    def data_potential(data_logp=data_logp):
-        return data_logp
-
-    m1 = dict(data_logp=data_logp, logp=logp, data_potential=data_potential)
-
-    # coin w unknown bias model
-    q = Uniform('q', 0, 1)
-    @deterministic
-    def data_logp(q=q):
-        return binomial_like(15, 20, q)
-
-    @deterministic
-    def logp(q=q, data_logp=data_logp):
-         return uniform_like(q,0,1) + data_logp
-
-    @potential
-    def data_potential(data_logp=data_logp):
-        return data_logp
-
-    m2 = dict(q=q, data_logp=data_logp, logp=logp, data_potential=data_potential)
-
-    return m1, m2, bayes_factor(m1, m2, iter=iter, burn=burn, verbose=verbose)
+    return bayes_factor(m1, m2, iter=iter, burn=burn, verbose=verbose)
