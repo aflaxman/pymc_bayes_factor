@@ -28,7 +28,7 @@ Examples
 
 
 from pymc import *
-from numpy import exp, mean
+from numpy import exp, mean, log, array
 
 
 def bayes_factor(m1, m2, iter=1e6, burn=25000, thin=10, verbose=0):
@@ -72,14 +72,15 @@ def bayes_factor(m1, m2, iter=1e6, burn=25000, thin=10, verbose=0):
     Raftery (1995) where it is attributed to to Newton and Raftery
     (1994)
     """
-    MCMC(m1).sample(iter, burn, thin, verbose=verbose)
+    MCMC(m1).sample(iter*thin+burn, burn, thin, verbose=verbose)
     logp1 = m1.logp()
 
-    MCMC(m2).sample(iter, burn, thin, verbose=verbose)
+    MCMC(m2).sample(iter*thin+burn, burn, thin, verbose=verbose)
     logp2 = m2.logp()
 
-    mu_logp = mean(logp2)
-    K = mean(exp(mu_logp-logp1)) / mean(exp(mu_logp-logp2))
+    # pymc.flib.logsum suggested by Anand Patil, http://gist.github.com/179657
+    K = exp(pymc.flib.logsum(-logp1) - log(len(logp1))
+            - (pymc.flib.logsum(-logp2) - log(len(logp2))))
 
     return K
 
@@ -97,13 +98,14 @@ class binomial_model:
         self.data_potential = data_potential
 
     def logp(self):
+        from numpy import array
+
         if isinstance(self.q, float):
-            return self.data_potential.logp
+            return array([Model(self).logp])
 
         elif isinstance(self.q, Variable) and isinstance(self.q.trace, bool):        # trace is not a function until MCMC is run
-            return self.data_potential.logp
+            return array([Model(self).logp])
 
-        from numpy import array
         logp = []
         for q_val in self.q.trace():
             self.q.value = q_val
@@ -111,7 +113,7 @@ class binomial_model:
         return array(logp)
 
 
-def wikipedia_example(iter=1e6, burn=25000, verbose=1):
+def wikipedia_example(iter=1e6, burn=25000, thin=10, verbose=1):
     """ Based on the Wikipedia example, 115 heads from 200 coin
     tosses, m1 = fair coin, m2 = coin with probability q, uniform
     [0,1] prior on q.
@@ -122,4 +124,4 @@ def wikipedia_example(iter=1e6, burn=25000, verbose=1):
     m1 = binomial_model(115, 200, .5)
     m2 = binomial_model(115, 200, Uniform('q', 0., 1.))
 
-    return bayes_factor(m1, m2, iter=iter, burn=burn, verbose=verbose)
+    return bayes_factor(m1, m2, iter=iter, burn=burn, thin=thin, verbose=verbose)
